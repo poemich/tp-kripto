@@ -10,12 +10,14 @@ class CryptoApp:
     def __init__(self, root):
         self.root = root
         self.root.title("RSA-OAEP-256 File Tool")
-        self.root.geometry("760x620")
-        self.root.minsize(720, 600)
+        self.root.geometry("760x680")
+        self.root.minsize(720, 640)
         self.root.configure(bg="#0f172a")
 
         self.enc_name_as_original = tk.BooleanVar(value=True)
         self.dec_name_as_original = tk.BooleanVar(value=True)
+        self.enc_append_prefix = tk.BooleanVar(value=False)
+        self.dec_append_prefix = tk.BooleanVar(value=False)
 
         self.create_widgets()
 
@@ -134,6 +136,8 @@ class CryptoApp:
         if not plain:
             return "encrypted_output.bin"
         name, _ = os.path.splitext(os.path.basename(plain))
+        if self.enc_append_prefix.get():
+            name = f"{name}_encrypted"
         return f"{name}.bin"
 
     def get_default_decrypted_name(self):
@@ -145,10 +149,12 @@ class CryptoApp:
         name, ext = os.path.splitext(base_name)
         candidate = name if ext.lower() == ".bin" else base_name
 
-        if candidate.endswith("_encrypted"):
-            return f"{candidate[:-10]}{get_ciphertext_ext(cipher)}"
-
         original_ext = get_ciphertext_ext(cipher)
+        if candidate.endswith("_encrypted"):
+            candidate = candidate[:-10]
+
+        if self.dec_append_prefix.get():
+            candidate = f"{candidate}_decrypted"
 
         if os.path.splitext(candidate)[1]:
             return candidate
@@ -217,9 +223,16 @@ class CryptoApp:
             command=self.refresh_encrypt_output_name,
             style="Modern.TCheckbutton",
         ).grid(row=3, column=1, sticky="w", padx=(16, 10), pady=(8, 2))
-        ttk.Label(form, text="Checked: output replaces the original extension with .bin", style="Hint.TLabel").grid(row=4, column=1, sticky="w", padx=(16, 10), pady=(0, 8))
+        ttk.Checkbutton(
+            form,
+            text="Append prefix",
+            variable=self.enc_append_prefix,
+            command=self.refresh_encrypt_output_name,
+            style="Modern.TCheckbutton",
+        ).grid(row=4, column=1, sticky="w", padx=(16, 10), pady=(2, 2))
+        ttk.Label(form, text="Checked together: original_encrypted.bin", style="Hint.TLabel").grid(row=5, column=1, sticky="w", padx=(16, 10), pady=(0, 8))
 
-        self.add_row(form, 5, "Output file name", self.enc_out_name_entry)
+        self.add_row(form, 6, "Output file name", self.enc_out_name_entry)
 
         actions = ttk.Frame(self.frame_encrypt, style="Section.TFrame")
         actions.grid(row=3, column=0, sticky="ew", pady=(24, 0))
@@ -293,9 +306,16 @@ class CryptoApp:
             command=self.refresh_decrypt_output_name,
             style="Modern.TCheckbutton",
         ).grid(row=3, column=1, sticky="w", padx=(16, 10), pady=(8, 2))
-        ttk.Label(form, text="Checked: gambar.jpg.bin becomes gambar.jpg when possible", style="Hint.TLabel").grid(row=4, column=1, sticky="w", padx=(16, 10), pady=(0, 8))
+        ttk.Checkbutton(
+            form,
+            text="Append prefix",
+            variable=self.dec_append_prefix,
+            command=self.refresh_decrypt_output_name,
+            style="Modern.TCheckbutton",
+        ).grid(row=4, column=1, sticky="w", padx=(16, 10), pady=(2, 2))
+        ttk.Label(form, text="Checked together: original_decrypted.ext", style="Hint.TLabel").grid(row=5, column=1, sticky="w", padx=(16, 10), pady=(0, 8))
 
-        self.add_row(form, 5, "Output file name", self.dec_out_name_entry)
+        self.add_row(form, 6, "Output file name", self.dec_out_name_entry)
 
         actions = ttk.Frame(self.frame_decrypt, style="Section.TFrame")
         actions.grid(row=3, column=0, sticky="ew", pady=(24, 0))
