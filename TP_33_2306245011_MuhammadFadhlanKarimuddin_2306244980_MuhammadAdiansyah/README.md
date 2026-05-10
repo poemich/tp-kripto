@@ -5,7 +5,7 @@
 - Muhammad Adiansyah (2306244980)
 
 ## Disclaimer Penggunaan AI
-Program ini dikembangkan dengan bantuan AI (Artificial Intelligence) untuk menyusun struktur, memberikan dokumentasi yang rapi, dan membantu implementasi dari awal (from scratch) algoritma RSA-OAEP-256 menggunakan standard library Python.
+Dalam pengerjaan program ini, AI digunakan sebagai alat bantu untuk brainstorming, merapikan struktur kode, membantu penulisan dokumentasi, dan mengecek ulang bagian-bagian implementasi. Keputusan desain, pemahaman algoritma, penyesuaian kode, serta pengujian tetap dilakukan oleh anggota kelompok berdasarkan kebutuhan tugas RSA-OAEP-256 ini.
 
 ## Asumsi Implementasi
 
