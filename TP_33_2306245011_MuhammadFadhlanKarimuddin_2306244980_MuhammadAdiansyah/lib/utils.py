@@ -60,7 +60,7 @@ def get_ciphertext_ext(ciphertext_path):
         pass
     return ""
 
-def encrypt_file(plaintext_path, public_key_path, output_path):
+def encrypt_file(plaintext_path, public_key_path, output_path, progress_callback=None):
     """
     Mengenakripsi file dengan memecahnya menjadi chunk-chunk (Chunking) 
     menggunakan RSA-OAEP-256.
@@ -69,6 +69,9 @@ def encrypt_file(plaintext_path, public_key_path, output_path):
     plaintext_path -- Lokasi file yang akan dienkripsi.
     public_key_path -- Lokasi file kunci publik (.key).
     output_path -- Lokasi untuk menyimpan file hasil enkripsi.
+    progress_callback -- Fungsi opsional untuk melaporkan progres.
+                         Fungsi ini dipanggil dengan format:
+                         progress_callback(persen, jumlah_selesai, total_data).
     """
     pub_key = load_key(public_key_path)
     
@@ -78,6 +81,10 @@ def encrypt_file(plaintext_path, public_key_path, output_path):
     _, ext = os.path.splitext(plaintext_path)
     ext_bytes = ext.encode('utf-8')[:16].ljust(16, b'\x00')
     
+    processed_bytes = 0
+    if file_size == 0 and progress_callback:
+        progress_callback(100.0, 0, 0)
+
     with open(plaintext_path, 'rb') as fin, open(output_path, 'wb') as fout:
         # Tulis Header
         # Format: MAGIC(8s) + CHUNK_SIZE(H) + BLOCK_SIZE(H) + FILE_SIZE(Q) + EXTENSION(16s)
@@ -102,7 +109,13 @@ def encrypt_file(plaintext_path, public_key_path, output_path):
             c_bytes = c_int.to_bytes(RSA_BLOCK_SIZE, byteorder='big')
             fout.write(c_bytes)
 
-def decrypt_file(ciphertext_path, private_key_path, output_path):
+            # Laporkan progres berdasarkan jumlah byte plaintext yang sudah diproses.
+            processed_bytes += len(chunk)
+            if progress_callback:
+                percent = (processed_bytes / file_size) * 100 if file_size else 100.0
+                progress_callback(percent, processed_bytes, file_size)
+
+def decrypt_file(ciphertext_path, private_key_path, output_path, progress_callback=None):
     """
     Mendekripsi file hasil chunking RSA-OAEP-256 dan merangkai kembali 
     menjadi file aslinya.
@@ -111,6 +124,9 @@ def decrypt_file(ciphertext_path, private_key_path, output_path):
     ciphertext_path -- Lokasi file yang telah dienkripsi.
     private_key_path -- Lokasi file kunci privat (.key).
     output_path -- Lokasi untuk menyimpan file hasil dekripsi.
+    progress_callback -- Fungsi opsional untuk melaporkan progres.
+                         Fungsi ini dipanggil dengan format:
+                         progress_callback(persen, jumlah_block_selesai, total_block).
     """
     priv_key = load_key(private_key_path)
     
@@ -128,7 +144,14 @@ def decrypt_file(ciphertext_path, private_key_path, output_path):
         if block_size != RSA_BLOCK_SIZE:
             raise ValueError(f"Ukuran blok RSA tidak didukung: {block_size}.")
             
+        ciphertext_size = os.path.getsize(ciphertext_path)
+        payload_size = ciphertext_size - header_size
+        total_blocks = payload_size // block_size if payload_size > 0 else 0
+        processed_blocks = 0
         written_bytes = 0
+
+        if total_blocks == 0 and progress_callback:
+            progress_callback(100.0, 0, 0)
         
         while True:
             c_bytes = fin.read(block_size)
@@ -155,3 +178,9 @@ def decrypt_file(ciphertext_path, private_key_path, output_path):
             to_write = min(len(original_chunk), orig_size - written_bytes)
             fout.write(original_chunk[:to_write])
             written_bytes += to_write
+
+            # Laporkan progres berdasarkan jumlah block ciphertext yang sudah selesai.
+            processed_blocks += 1
+            if progress_callback:
+                percent = (processed_blocks / total_blocks) * 100 if total_blocks else 100.0
+                progress_callback(percent, processed_blocks, total_blocks)

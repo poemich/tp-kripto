@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
 import os
+import time
 from lib.rsa import generate_keypair
 from lib.utils import save_key, encrypt_file, decrypt_file, get_ciphertext_ext
 
@@ -18,6 +19,8 @@ class CryptoApp:
         self.dec_name_as_original = tk.BooleanVar(value=True)
         self.enc_append_prefix = tk.BooleanVar(value=False)
         self.dec_append_prefix = tk.BooleanVar(value=False)
+        self.enc_start_time = None
+        self.dec_start_time = None
 
         self.create_widgets()
 
@@ -65,6 +68,7 @@ class CryptoApp:
         style.configure("Modern.TLabel", background="#111827", foreground="#cbd5e1", font=("Segoe UI", 10))
         style.configure("Hint.TLabel", background="#111827", foreground="#64748b", font=("Segoe UI", 9))
         style.configure("Status.TLabel", background="#1e293b", foreground="#93c5fd", font=("Segoe UI", 10), padding=(10, 7))
+        style.configure("Progress.Horizontal.TProgressbar", troughcolor="#0b1220", background="#2563eb", bordercolor="#334155", lightcolor="#2563eb", darkcolor="#2563eb")
 
         style.configure(
             "Modern.TEntry",
@@ -190,6 +194,48 @@ class CryptoApp:
             clean_name += ".bin"
         return os.path.join(folder.strip(), clean_name)
 
+    def format_elapsed(self, start_time):
+        """
+        Mengubah durasi proses menjadi format HH:MM:SS agar mudah dibaca di GUI.
+
+        Argumen:
+        start_time -- Waktu mulai proses dari time.time().
+
+        Return:
+        String durasi seperti 00:01:25.
+        """
+        if not start_time:
+            return "00:00:00"
+
+        elapsed = int(time.time() - start_time)
+        hours = elapsed // 3600
+        minutes = (elapsed % 3600) // 60
+        seconds = elapsed % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    def update_progress(self, progress_bar, progress_label, start_time, percent):
+        """
+        Memperbarui progress bar dan teks elapsed time.
+
+        Fungsi ini dipanggil lewat root.after dari thread worker, karena widget Tkinter
+        harus diubah dari thread utama agar GUI tetap aman dan tidak crash.
+        """
+        safe_percent = max(0.0, min(100.0, percent))
+        progress_bar["value"] = safe_percent
+        progress_label.config(text=f"Progress: {safe_percent:5.1f}% | Elapsed: {self.format_elapsed(start_time)}")
+
+    def make_progress_callback(self, progress_bar, progress_label, start_time):
+        """
+        Membuat callback progres untuk fungsi enkripsi/dekripsi di lib/utils.py.
+
+        Callback ini menerima persen dari proses RSA chunking, lalu menjadwalkan
+        update GUI memakai root.after supaya aman lintas thread.
+        """
+        def callback(percent, processed, total):
+            self.root.after(0, lambda: self.update_progress(progress_bar, progress_label, start_time, percent))
+
+        return callback
+
     # --- ENCRYPT TAB ---
     def setup_encrypt_tab(self):
         self.frame_encrypt.columnconfigure(0, weight=1)
@@ -243,6 +289,11 @@ class CryptoApp:
         self.enc_status = ttk.Label(actions, text="Status: Ready", style="Status.TLabel")
         self.enc_status.grid(row=0, column=1, sticky="ew", padx=(16, 0))
 
+        self.enc_progress = ttk.Progressbar(self.frame_encrypt, mode="determinate", maximum=100, style="Progress.Horizontal.TProgressbar")
+        self.enc_progress.grid(row=4, column=0, sticky="ew", pady=(18, 0))
+        self.enc_progress_label = ttk.Label(self.frame_encrypt, text="Progress:   0.0% | Elapsed: 00:00:00", style="Hint.TLabel")
+        self.enc_progress_label.grid(row=5, column=0, sticky="w", pady=(6, 0))
+
     def run_encrypt(self):
         plain = self.enc_plain_entry.get().strip()
         key = self.enc_key_entry.get().strip()
@@ -258,13 +309,18 @@ class CryptoApp:
 
         out = self.build_output_path(folder, out_name, force_bin=True)
 
+        self.enc_start_time = time.time()
+        self.enc_progress["value"] = 0
+        self.enc_progress_label.config(text="Progress:   0.0% | Elapsed: 00:00:00")
         self.btn_encrypt.config(state="disabled")
         self.enc_status.config(text="Status: Encrypting... RSA chunking may take a while")
         threading.Thread(target=self._thread_encrypt, args=(plain, key, out), daemon=True).start()
 
     def _thread_encrypt(self, plain, key, out):
         try:
-            encrypt_file(plain, key, out)
+            progress_callback = self.make_progress_callback(self.enc_progress, self.enc_progress_label, self.enc_start_time)
+            encrypt_file(plain, key, out, progress_callback=progress_callback)
+            self.root.after(0, lambda: self.update_progress(self.enc_progress, self.enc_progress_label, self.enc_start_time, 100.0))
             self.root.after(0, lambda: self.enc_status.config(text=f"Status: Encrypted to {os.path.basename(out)}"))
             self.root.after(0, lambda: messagebox.showinfo("Sukses", f"File berhasil dienkripsi:\n{out}"))
         except Exception as e:
@@ -326,6 +382,11 @@ class CryptoApp:
         self.dec_status = ttk.Label(actions, text="Status: Ready", style="Status.TLabel")
         self.dec_status.grid(row=0, column=1, sticky="ew", padx=(16, 0))
 
+        self.dec_progress = ttk.Progressbar(self.frame_decrypt, mode="determinate", maximum=100, style="Progress.Horizontal.TProgressbar")
+        self.dec_progress.grid(row=4, column=0, sticky="ew", pady=(18, 0))
+        self.dec_progress_label = ttk.Label(self.frame_decrypt, text="Progress:   0.0% | Elapsed: 00:00:00", style="Hint.TLabel")
+        self.dec_progress_label.grid(row=5, column=0, sticky="w", pady=(6, 0))
+
     def run_decrypt(self):
         cipher = self.dec_cipher_entry.get().strip()
         key = self.dec_key_entry.get().strip()
@@ -341,13 +402,18 @@ class CryptoApp:
 
         out = self.build_output_path(folder, out_name)
 
+        self.dec_start_time = time.time()
+        self.dec_progress["value"] = 0
+        self.dec_progress_label.config(text="Progress:   0.0% | Elapsed: 00:00:00")
         self.btn_decrypt.config(state="disabled")
         self.dec_status.config(text="Status: Decrypting... RSA chunking may take a while")
         threading.Thread(target=self._thread_decrypt, args=(cipher, key, out), daemon=True).start()
 
     def _thread_decrypt(self, cipher, key, out):
         try:
-            decrypt_file(cipher, key, out)
+            progress_callback = self.make_progress_callback(self.dec_progress, self.dec_progress_label, self.dec_start_time)
+            decrypt_file(cipher, key, out, progress_callback=progress_callback)
+            self.root.after(0, lambda: self.update_progress(self.dec_progress, self.dec_progress_label, self.dec_start_time, 100.0))
             self.root.after(0, lambda: self.dec_status.config(text=f"Status: Decrypted to {os.path.basename(out)}"))
             self.root.after(0, lambda: messagebox.showinfo("Sukses", f"File berhasil didekripsi:\n{out}"))
         except Exception as e:
