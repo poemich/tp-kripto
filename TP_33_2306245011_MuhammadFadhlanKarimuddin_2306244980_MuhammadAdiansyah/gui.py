@@ -17,8 +17,8 @@ class CryptoApp:
 
         self.enc_name_as_original = tk.BooleanVar(value=True)
         self.dec_name_as_original = tk.BooleanVar(value=True)
-        self.enc_append_prefix = tk.BooleanVar(value=False)
-        self.dec_append_prefix = tk.BooleanVar(value=False)
+        self.enc_append_suffix = tk.BooleanVar(value=False)
+        self.dec_append_suffix = tk.BooleanVar(value=False)
         self.enc_start_time = None
         self.dec_start_time = None
 
@@ -140,7 +140,7 @@ class CryptoApp:
         if not plain:
             return "encrypted_output.bin"
         name, _ = os.path.splitext(os.path.basename(plain))
-        if self.enc_append_prefix.get():
+        if self.enc_append_suffix.get():
             name = f"{name}_encrypted"
         return f"{name}.bin"
 
@@ -157,7 +157,7 @@ class CryptoApp:
         if candidate.endswith("_encrypted"):
             candidate = candidate[:-10]
 
-        if self.dec_append_prefix.get():
+        if self.dec_append_suffix.get():
             candidate = f"{candidate}_decrypted"
 
         if os.path.splitext(candidate)[1]:
@@ -271,8 +271,8 @@ class CryptoApp:
         ).grid(row=3, column=1, sticky="w", padx=(16, 10), pady=(8, 2))
         ttk.Checkbutton(
             form,
-            text="Append prefix",
-            variable=self.enc_append_prefix,
+            text="Append suffix",
+            variable=self.enc_append_suffix,
             command=self.refresh_encrypt_output_name,
             style="Modern.TCheckbutton",
         ).grid(row=4, column=1, sticky="w", padx=(16, 10), pady=(2, 2))
@@ -364,8 +364,8 @@ class CryptoApp:
         ).grid(row=3, column=1, sticky="w", padx=(16, 10), pady=(8, 2))
         ttk.Checkbutton(
             form,
-            text="Append prefix",
-            variable=self.dec_append_prefix,
+            text="Append suffix",
+            variable=self.dec_append_suffix,
             command=self.refresh_decrypt_output_name,
             style="Modern.TCheckbutton",
         ).grid(row=4, column=1, sticky="w", padx=(16, 10), pady=(2, 2))
